@@ -1,5 +1,5 @@
 # 인공지능 프로젝트 skku
-## 2025-2 team-4
+2025-2 team-4
 
 ## Quick Start
 
