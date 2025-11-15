@@ -1,8 +1,5 @@
-# filtering/collaborative.py
-
 import pandas as pd
 from surprise import SVD, Reader, Dataset
-# from surprise.model_selection import build_full_trainset
 
 class CollaborativeRecommender:
     """
