@@ -22,7 +22,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Running the Tool
+### 2. Running the Tool
 
 The primary way to use the tool is via the `main.py` script.
 
