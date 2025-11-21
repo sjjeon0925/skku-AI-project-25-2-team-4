@@ -41,9 +41,9 @@ class ContentBasedRecommender:
         
         # 2. 위치 필터링 (user_info에 'location'이 있는 경우)
         # location은 추후에 거리 정보를 수치화하여 유사도 계산 점수와 종합하는 버전으로 변경
-        if user_info.get('location'):
-            # 'location' 컬럼이 user_info의 위치와 일치하는 메뉴만 선택
-            filtered_df = filtered_df[filtered_df['location'] == user_info['location']]
+        # if user_info.get('location'):
+        #     # 'location' 컬럼이 user_info의 위치와 일치하는 메뉴만 선택
+        #     filtered_df = filtered_df[filtered_df['location'] == user_info['location']]
             
         # 3. 예산 필터링 (user_info에 'max_price'가 있는 경우)
         if user_info.get('max_price'):
