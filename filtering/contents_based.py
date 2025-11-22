@@ -2,98 +2,65 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
+from utils import DATA_PATHS 
 
 class ContentBasedRecommender:
     """
     콘텐츠 기반 필터링 추천 시스템 클래스.
-    메뉴의 특징(features)과 사용자의 선호(profile)를 기반으로 유사도를 계산합니다.
+    메뉴 특징(features)과 사용자의 선호(profile)를 기반으로 유사도를 계산합니다.
     """
     
     def __init__(self, data_path='./data/menu_data.csv'):
-        """
-        데이터를 로드하고 TF-IDF 행렬을 미리 학습시킵니다.
-        """
-        try:
-            self.menu_df = pd.read_csv(data_path)
-        except FileNotFoundError:
-            print(f"데이터 파일을 찾을 수 없습니다: {data_path}")
-            # (실제 구현 시) 기본 데이터프레임 생성 또는 예외 처리
-            self.menu_df = pd.DataFrame(columns=['id', 'title', 'features', 'price', 'location'])
-
-        # 1. 데이터 전처리: 'features' 컬럼의 NaN 값을 빈 문자열로 대체
+        # 1. 데이터 로드 및 전처리
+        self.menu_df = pd.read_csv(data_path)
         self.menu_df['features'] = self.menu_df['features'].fillna('')
         
-        # 2. TF-IDF 벡터화 객체 생성 및 학습
-        # 메뉴의 모든 특징(키워드)을 학습
+        # 2. 특징 벡터화 (TF-IDF)
         self.tfidf_vectorizer = TfidfVectorizer()
         self.menu_feature_matrix = self.tfidf_vectorizer.fit_transform(self.menu_df['features'])
         
         print(f"콘텐츠 기반 모델 초기화 완료. 총 {self.menu_df.shape[0]}개 메뉴 로드됨.")
 
-    def _apply_hard_filters(self, user_info):
+
+    # Train과 Predict 로직 모두 처리 가능
+    def get_single_cb_score(self, menu_id, user_pref_source, user_df=None):
         """
-        (내부 함수) 사용자의 명시적 제약 조건(위치, 예산, 알레르기)을 적용하여
-        추천 대상이 될 수 있는 메뉴의 인덱스(index)를 필터링합니다.
+        특정 메뉴 ID와 사용자 선호도 정보를 받아 코사인 유사도 점수를 계산합니다.
+
+        :param menu_id: 추천할 메뉴 ID
+        :param user_pref_source: user_id (Train 시) 또는 최종 선호도 문자열 (Predict 시)
+        :param user_df: Predict 시에는 None, Train 시에는 user_df 전체가 전달됨
+        :return: 코사인 유사도 점수 (float)
         """
         
-        # 1. 원본 데이터프레임 복사
-        filtered_df = self.menu_df.copy()
+        # 1. 선호도 문자열 결정 (훈련 vs. 예측)
+        if isinstance(user_pref_source, int):
+            # A. 훈련 시나리오: user_id가 들어왔을 때 DB(user_df)에서 조회
+            user_id = user_pref_source
+            if user_df is None: 
+                # user_df가 인수로 전달되지 않은 경우, 파일을 로드하여 조회 (안전 장치)
+                try: user_df = pd.read_csv(DATA_PATHS['user'])
+                except: return 0.0
+                
+            user_pref = user_df[user_df['user_id'] == user_id]['preference'].iloc[0]
         
-        # 2. 위치 필터링 (user_info에 'location'이 있는 경우)
-        # location은 추후에 거리 정보를 수치화하여 유사도 계산 점수와 종합하는 버전으로 변경
-        # if user_info.get('location'):
-        #     # 'location' 컬럼이 user_info의 위치와 일치하는 메뉴만 선택
-        #     filtered_df = filtered_df[filtered_df['location'] == user_info['location']]
+        elif isinstance(user_pref_source, str):
+            # B. 예측 시나리오: 쿼리가 결합된 최종 선호도 문자열이 직접 들어왔을 때
+            user_pref = user_pref_source
             
-        # 3. 예산 필터링 (user_info에 'max_price'가 있는 경우)
-        if user_info.get('max_price'):
-            # 'price' 컬럼이 user_info의 최대 예산 이하인 메뉴만 선택
-            filtered_df = filtered_df[filtered_df['price'] <= user_info['max_price']]
-        
-        # 4. 알레르기/불호 필터링 (user_info에 'allergies'가 있는 경우)
-        if user_info.get('allergies'):
-            # 'allergies'는 리스트라고 가정 (예: ['새우', '땅콩'])
-            # 'features'에 알레르기 키워드가 포함되지 않은 메뉴만 선택
-            pattern = '|'.join(user_info['allergies'])
-            filtered_df = filtered_df[~filtered_df['features'].str.contains(pattern, na=False)]
-            
-        # 필터링된 메뉴의 원본 인덱스를 반환
-        return filtered_df.index
+        else:
+            return 0.0
 
-    def get_recommendations(self, user_info, top_n=10):
-        """
-        사용자 정보를 받아 콘텐츠 기반 추천 메뉴를 반환합니다.
-
-        :param user_info: (dict) 사용자 정보 딕셔너리
-               (예: {'profile_text': '한식 찌개 얼큰한', 'location': '정문', 'max_price': 10000, 'allergies': ['새우']})
-        :param top_n: (int) 추천할 메뉴 개수
-        :return: (DataFrame) 추천 메뉴 상위 N개
-        """
+        # 2. TF-IDF 벡터 생성 및 유사도 계산
+        # 'menu_id' 컬럼 이름이 'id'가 아닌 'menu_id'인지 확인
+        menu_index = self.menu_df[self.menu_df['menu_id'] == menu_id].index
+        if len(menu_index) == 0: return 0.0
         
-        # 1. 제약 조건(하드 필터)을 먼저 적용
-        # 필터링을 통과한 메뉴들의 원본 인덱스 목록
-        valid_indices = self._apply_hard_filters(user_info)
+        # 사용자 선호도 문자열을 TF-IDF 벡터로 변환
+        user_vector = self.tfidf_vectorizer.transform([user_pref])
         
-        if len(valid_indices) == 0:
-            return pd.DataFrame(columns=['id', 'title', 'similarity_score', 'price', 'location'])
-
-        # 2. 사용자 프로필(선호 키워드) 벡터화
-        # user_info의 'profile_text' (예: "한식 고기 든든한")를 벡터로 변환
-        user_profile_vector = self.tfidf_vectorizer.transform([user_info['profile_text']])
+        # 메뉴 특징 벡터 추출
+        menu_vector = self.menu_feature_matrix[menu_index[0]]
         
-        # 3. 유사도 계산
-        # 필터링된 메뉴들의 특징 행렬만 추출
-        filtered_menu_matrix = self.menu_feature_matrix[valid_indices]
-        
-        # 사용자 프로필 벡터와 필터링된 메뉴 행렬 간의 코사인 유사도 계산
-        similarity_scores = cosine_similarity(user_profile_vector, filtered_menu_matrix).flatten()
-        
-        # 4. 유사도 점수를 DataFrame에 추가
-        # valid_indices를 인덱스로 사용하여 필터링된 메뉴 DataFrame을 가져옴
-        recommendations_df = self.menu_df.loc[valid_indices].copy()
-        recommendations_df['similarity_score'] = similarity_scores
-        
-        # 5. 유사도 점수 기준으로 내림차순 정렬하여 상위 N개 반환
-        recommendations_df = recommendations_df.sort_values(by='similarity_score', ascending=False)
-        
-        return recommendations_df.head(top_n)[['id', 'title', 'similarity_score', 'price', 'location', 'features']]
+        # 코사인 유사도 계산
+        return cosine_similarity(user_vector, menu_vector)[0][0]
