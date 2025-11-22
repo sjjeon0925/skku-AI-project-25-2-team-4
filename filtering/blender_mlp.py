@@ -1,23 +1,21 @@
-# filtering/blender_mlp.py
-
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.metrics import RootMeanSquaredError
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import numpy as np
 import pandas as pd
+import joblib
 
 class MLPBlender:
     def __init__(self, input_dim):
         # 1. MLP 모델 구조 정의 (Keras Sequential API 사용)
         self.scaler = StandardScaler()
         self.model = Sequential([
-            # Input Layer (5개의 특징: CB_Score, CF_Score, Distance, Price, Rating)
             Dense(32, activation='relu', input_shape=(input_dim,)), 
-            Dropout(0.2), # 과적합 방지를 위한 드롭아웃
+            Dropout(0.2), 
             Dense(16, activation='relu'),
-            # Output Layer: 예상 평점(1~5점)을 예측하는 회귀 문제이므로 활성화 함수는 'linear'
             Dense(1, activation='linear') 
         ])
         
@@ -25,12 +23,8 @@ class MLPBlender:
         self.model.compile(
             optimizer=Adam(learning_rate=0.001),
             loss='mse',
-            metrics=[self.root_mean_squared_error] # RMSE를 직접 정의하여 사용
+            metrics=[RootMeanSquaredError()]
         )
-        
-    def root_mean_squared_error(self, y_true, y_pred):
-        # RMSE는 MSE의 제곱근
-        return np.sqrt(self.model.loss(y_true, y_pred))
 
     def train(self, X_train_raw, y_train, epochs=30, batch_size=32):
         """
@@ -55,11 +49,13 @@ class MLPBlender:
         return history
 
     def predict(self, X_predict_raw):
-        """
-        새로운 특징 벡터를 받아 최종 예상 평점을 예측합니다.
-        """
-        # 학습 시 사용한 Scaler로 정규화 (필수)
+        # 학습 시 사용한 Scaler로 정규화
         X_predict = self.scaler.transform(X_predict_raw)
         return self.model.predict(X_predict).flatten()
 
-# (참고: 이 코드를 사용하려면 TensorFlow를 설치해야 합니다: pip install tensorflow)
+    # Scaler 저장/로드 기능
+    def save_scaler(self, path):
+        joblib.dump(self.scaler, path)
+
+    def load_scaler(self, path):
+        self.scaler = joblib.load(path)
