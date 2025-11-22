@@ -16,7 +16,7 @@ class CollaborativeRecommender:
         try:
             self.ratings_df = pd.read_csv(ratings_path)
             menu_df = pd.read_csv(menu_path)
-            self.all_menu_ids = set(menu_df['id'].unique())
+            self.all_menu_ids = set(menu_df['menu_id'].unique())
         except FileNotFoundError as e:
             print(f"데이터 파일 로드 오류: {e}. 협업 필터링 모델을 초기화할 수 없습니다.")
             self.model = None
