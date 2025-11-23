@@ -13,7 +13,7 @@ from utils import DATA_PATHS, calculate_distance_score # [수정] utils에서 �
 MODEL_PATH = 'model/final_mlp_model.keras'
 SCALER_PATH = 'model/scaler.joblib' 
 # INPUT_FEATURE_DIM = 5
-EPOCHS = 300 
+EPOCHS = 3000 
 PLOT_FILENAME = 'model/training_rmse_plot.png'
 
 def plot_training_history(history, filename):
