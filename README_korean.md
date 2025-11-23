@@ -10,7 +10,7 @@
 **저장소 복제 (Clone the Repository)**
 
 ```bash
-git clone [https://github.com/sjjeon0925/skku-AI-project-25-2-team-4.git](https://github.com/sjjeon0925/skku-AI-project-25-2-team-4.git)
+git clone https://github.com/sjjeon0925/skku-AI-project-25-2-team-4.git
 cd skku-AI-project-25-2-team-4
 ```
 
