@@ -7,13 +7,17 @@ from sklearn.metrics import mean_squared_error
 from filtering.contents_based import ContentBasedRecommender
 from filtering.collaborative import CollaborativeRecommender
 from filtering.blender_mlp import MLPBlender
-from utils import DATA_PATHS, calculate_distance_score # [수정] utils에서 상수 및 함수 임포트
+from filtering.graph_model import GraphRecommender 
+import torch
+from utils import DATA_PATHS, calculate_distance_score # utils에서 상수 및 함수 임포트
 
 # --- 학습 설정 ---
-MODEL_PATH = 'model/final_mlp_model.keras'
+MODEL_PATH = 'model/mlp_model.keras'
+GRAPH_MODEL_PATH = 'model/gnn_model.pth'
 SCALER_PATH = 'model/scaler.joblib' 
-# INPUT_FEATURE_DIM = 5
-EPOCHS = 3000 
+
+EPOCHS = 300 
+GNN_EPOCHS = 50
 PLOT_FILENAME = 'model/training_rmse_plot.png'
 
 def plot_training_history(history, filename):
@@ -45,7 +49,7 @@ def plot_training_history(history, filename):
     plt.close() # 메모리 해제
     print(f"\n✅ Training plot saved to {filename}")
 
-def generate_hybrid_features_train(ratings_df, menu_df, rest_df, user_df, cb_recommender, cf_recommender):
+def generate_hybrid_features_train(ratings_df, menu_df, rest_df, user_df, cb_recommender, cf_recommender, gnn_recommender):
     """
     MLP 학습에 사용할 X (입력 특징)와 Y (정답 평점) 데이터를 생성합니다.
     (Train 시에는 USER_QUERY/USER_LOC_CHAR 대신 과거 기록을 사용)
@@ -69,6 +73,11 @@ def generate_hybrid_features_train(ratings_df, menu_df, rest_df, user_df, cb_rec
         ).est,
         axis=1
     )
+
+    data['Graph_Score'] = data.apply(
+        lambda row: gnn_recommender.get_graph_score(row['user_id'], row['menu_id']),
+        axis=1
+    )
     
     # Distance Score: 평가 당시 위치를 사용
     # NOTE: location_map은 utils.py의 COORDINATES와 매칭되어야 합니다.
@@ -82,7 +91,7 @@ def generate_hybrid_features_train(ratings_df, menu_df, rest_df, user_df, cb_rec
     )
     
     # 3. X, Y 추출
-    X = data[['CB_Score', 'CF_Score', 'price', 'Distance_Score', 'rating_rest']].values
+    X = data[['CB_Score', 'CF_Score', 'Graph_Score', 'price', 'Distance_Score', 'rating_rest']].values
     Y = data['rating_menu'].values 
     
     print(f"특징 행렬 X 생성 완료. Shape: {X.shape}")
@@ -103,9 +112,16 @@ def main():
     # 2. 추천기 인스턴스 초기화 (CF 모델 학습 포함)
     cb_recommender = ContentBasedRecommender(data_path=DATA_PATHS['menu'])
     cf_recommender = CollaborativeRecommender(ratings_path=DATA_PATHS['rating'], menu_path=DATA_PATHS['menu'])
+
+    # 2-1. GNN 모델 초기화, 학습 및 저장
+    gnn_recommender = GraphRecommender(ratings_path=DATA_PATHS['rating'], menu_path=DATA_PATHS['menu'])
+    gnn_recommender.train(epochs=GNN_EPOCHS)
+
+    os.makedirs(os.path.dirname(GRAPH_MODEL_PATH), exist_ok=True)
+    gnn_recommender.save_model(GRAPH_MODEL_PATH)
     
     # 3. 특징 행렬 X, Y 생성 (학습 데이터)
-    X_train_full, Y_train_full = generate_hybrid_features_train(ratings_df, menu_df, rest_df, user_df, cb_recommender, cf_recommender)
+    X_train_full, Y_train_full = generate_hybrid_features_train(ratings_df, menu_df, rest_df, user_df, cb_recommender, cf_recommender, gnn_recommender)
     
     # 4. 학습/검증 셋 분리
     X_train, X_test, Y_train, Y_test = train_test_split(
