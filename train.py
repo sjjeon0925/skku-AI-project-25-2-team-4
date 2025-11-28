@@ -16,10 +16,6 @@ from utils import (
     MLP_MODEL_PATH, SCALER_PATH, GRAPH_MODEL_PATH
 )
 
-# --- 학습 설정 ---
-EPOCHS = 300 
-GNN_EPOCHS = 50
-
 if IS_BASELINE:
     PLOT_FILENAME = 'model/training_rmse_plot_baseline.png'
 else:
@@ -142,9 +138,7 @@ def main():
     
     history = mlp_blender.train(
         X_train_full, 
-        Y_train_full, 
-        epochs=EPOCHS, 
-        batch_size=4
+        Y_train_full
     ) 
     
     # 5. 모델 저장
