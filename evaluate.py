@@ -4,8 +4,8 @@ import os
 import tensorflow as tf
 
 # 모듈 임포트
-from contents_based import ContentBasedRecommender
-from collaborative import CollaborativeRecommender
+from filtering.contents_based import ContentBasedRecommender
+from filtering.collaborative import CollaborativeRecommender
 from filtering.blender_mlp import MLPBlender
 from utils import calculate_distance_score, DATA_PATHS 
 
