@@ -2,76 +2,28 @@ import pandas as pd
 import numpy as np
 import os
 import matplotlib.pyplot as plt
-import random
-import tensorflow as tf
-import torch
 
-# [유지] 기존 임포트 경로 및 파일 구조 준수
+# from sklearn.model_selection import train_test_split
+# from sklearn.metrics import mean_squared_error
+
 from filtering.contents_based import ContentBasedRecommender
 from filtering.collaborative import CollaborativeRecommender
 from filtering.blender_mlp import MLPBlender
-from filtering.graph_model import GraphRecommender 
-import torch
-from utils import DATA_PATHS, calculate_distance_score # utils에서 상수 및 함수 임포트
+from filtering.graph_model import GraphRecommender
+
+from utils import (
+    DATA_PATHS, calculate_distance_score, IS_BASELINE, 
+    MLP_MODEL_PATH, SCALER_PATH, GRAPH_MODEL_PATH
+)
 
 # --- 학습 설정 ---
-MODEL_PATH = 'model/mlp_model.keras'
-GRAPH_MODEL_PATH = 'model/gnn_model.pth'
-SCALER_PATH = 'model/scaler.joblib' 
-
 EPOCHS = 300 
 GNN_EPOCHS = 50
-PLOT_FILENAME = 'model/training_rmse_plot.png'
 
-# [유지] PLOT_FILENAME 설정 로직
 if IS_BASELINE:
     PLOT_FILENAME = 'model/training_rmse_plot_baseline.png'
 else:
     PLOT_FILENAME = 'model/training_rmse_plot_gnn.png'
-
-def set_seeds(seed):
-    os.environ['PYTHONHASHSEED'] = str(seed)
-    random.seed(seed)
-    np.random.seed(seed)
-    tf.random.set_seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
-
-def generate_negative_samples(ratings_df, menu_df, ratio=1):
-    """
-    [추가] 안 가본 식당(평점 0) 데이터를 생성하여 MLP 학습용으로 반환
-    """
-    print(f"   >> 네거티브 샘플링 생성 중... (Positive 1 : Negative {ratio})")
-    
-    users = ratings_df['user_id'].unique()
-    all_menus = menu_df['menu_id'].unique()
-    # 검색 속도를 위해 Set으로 변환
-    user_visited = ratings_df.groupby('user_id')['menu_id'].apply(set).to_dict()
-    
-    neg_rows = []
-    for user_id in users:
-        visited = user_visited.get(user_id, set())
-        unvisited = list(set(all_menus) - visited)
-        
-        if not unvisited: continue
-            
-        # 방문한 개수만큼(ratio=1) 랜덤 추출
-        num_neg = int(len(visited) * ratio)
-        if num_neg == 0 and len(visited) > 0: num_neg = 1 # 최소 1개 보장
-        
-        selected_neg = random.sample(unvisited, min(num_neg, len(unvisited)))
-        
-        for menu_id in selected_neg:
-            neg_rows.append({
-                'user_id': user_id,
-                'menu_id': menu_id,
-                'rating_menu': 0.0, # 0점 부여 (중요)
-            })
-            
-    print(f"   >> 네거티브 샘플 {len(neg_rows)}개 생성 완료.")
-    return pd.DataFrame(neg_rows)
 
 def plot_training_history(history):
     rmse = history.history['root_mean_squared_error']
@@ -91,47 +43,21 @@ def plot_training_history(history):
     plt.savefig(PLOT_FILENAME)
     print(f"학습 그래프 저장 완료: {PLOT_FILENAME}")
 
-def generate_hybrid_features_train(ratings_df, menu_df, rest_df, user_df, cb_recommender, cf_recommender, gnn_recommender):
-    """
-    MLP 학습에 사용할 X (입력 특징)와 Y (정답 평점) 데이터를 생성합니다.
-    (Train 시에는 USER_QUERY/USER_LOC_CHAR 대신 과거 기록을 사용)
-    """
+def generate_hybrid_features_train(ratings_df, menu_df, rest_df, user_df, cb_recommender, cf_recommender, gnn_recommender=None):
     print("\n[3] 하이브리드 특징 행렬 (X, Y) 생성 시작...")
     
-    # 1. Positive Data (ratings_df는 main에서 이미 rating_menu로 변경됨)
-    pos_data = ratings_df.copy()
-    
-    # 2. Negative Data 추가 (GNN 모드일 때만 적용)
-    if not IS_BASELINE: 
-        neg_data = generate_negative_samples(pos_data, menu_df, ratio=1)
-        data = pd.concat([pos_data, neg_data], ignore_index=True)
-    else:
-        data = pos_data
-
-    # 3. 메뉴 정보 병합
+    # 1. 데이터 병합
+    data = ratings_df.copy()
     data = pd.merge(data, menu_df[['menu_id', 'rest_id', 'price', 'features']], on='menu_id', how='left')
-    
-    # 4. 식당 정보 병합 (rating -> rating_rest 이름 변경)
     rest_temp = rest_df[['rest_id', 'Latitude', 'Longitude', 'rating']].rename(columns={'rating': 'rating_rest'})
     data = pd.merge(data, rest_temp, on='rest_id', how='left')    
     
-    # 5. 결측치 처리 (네거티브 샘플용)
-    if not IS_BASELINE:
-        data['price'] = data['price'].fillna(data['price'].mean())
-        data['rating_rest'] = data['rating_rest'].fillna(3.0)
-        # 위치 정보는 학습에 큰 영향 없으므로 기본값(후문) 처리
-        data['Latitude'] = data['Latitude'].fillna(37.2963)
-        data['Longitude'] = data['Longitude'].fillna(126.9706)
-
-    # 6. 특징 계산
+    # 2. 특징 계산 (과거 기록 기반)
     print(" - CB Score 계산 중...")
-    # apply 속도 최적화를 위해 dict 변환
-    user_pref_dict = user_df.set_index('user_id')['preference'].to_dict()
-    
     data['CB_Score'] = data.apply(
         lambda row: cb_recommender.get_single_cb_score(
             row['menu_id'], 
-            user_pref_dict.get(row['user_id'], "")
+            user_df[user_df['user_id'] == row['user_id']]['preference'].iloc[0]
         ), axis=1
     )
     
@@ -143,24 +69,32 @@ def generate_hybrid_features_train(ratings_df, menu_df, rest_df, user_df, cb_rec
         axis=1
     )
 
-    data['Graph_Score'] = data.apply(
-        lambda row: gnn_recommender.get_graph_score(row['user_id'], row['menu_id']),
-        axis=1
-    )
+    if not IS_BASELINE and gnn_recommender:
+        print(" - Graph Score 계산 중...")
+        data['Graph_Score'] = data.apply(
+            lambda row: gnn_recommender.get_graph_score(row['user_id'], row['menu_id']),
+            axis=1
+        ).fillna(0)
     
-    # Distance Score: 평가 당시 위치 사용 (네거티브 샘플은 'f' 정문 기준 등 임의 설정)
+    # Distance Score: 평가 당시 위치를 사용
     location_map = {'성균관대역': 's', '정문': 'f', '후문': 'b', '북문': 'n'} 
     data['Distance_Score'] = data.apply(
         lambda row: calculate_distance_score(
-            location_map.get(row.get('location', 'f'), 'f'), 
+            location_map.get(row['location'], 'f'), # 평가 당시 위치
             row['Latitude'], row['Longitude']
         ),
         axis=1
     )
-    
+
     # 3. X, Y 추출
-    X = data[['CB_Score', 'CF_Score', 'Graph_Score', 'price', 'Distance_Score', 'rating_rest']].values
-    Y = data['rating_menu'].values 
+    if IS_BASELINE:
+        # [Baseline] 5 Features
+        X = data[['CB_Score', 'CF_Score', 'price', 'Distance_Score', 'rating_rest']].values
+    else:
+        # [GNN] 6 Features
+        X = data[['CB_Score', 'CF_Score', 'Graph_Score', 'price', 'Distance_Score', 'rating_rest']].values
+        
+    Y = data['rating_menu'].values
     
     print(f"특징 행렬 X 생성 완료. Shape: {X.shape}")
     return X, Y
@@ -175,11 +109,7 @@ def main():
         menu_df = pd.read_csv(DATA_PATHS['menu'])
         rest_df = pd.read_csv(DATA_PATHS['rest'])
         user_df = pd.read_csv(DATA_PATHS['user'])
-        
-        # [필수] 컬럼명 변경 (rating -> rating_menu)
-        if 'rating' in ratings_df.columns:
-            ratings_df.rename(columns={'rating': 'rating_menu'}, inplace=True)
-            
+        ratings_df.rename(columns={'rating': 'rating_menu'}, inplace=True)
     except FileNotFoundError as e:
         print(f"Error: 필수 데이터 파일 로드 실패: {e}")
         return
@@ -189,31 +119,32 @@ def main():
     cf_recommender = CollaborativeRecommender(ratings_path=DATA_PATHS['rating'], menu_path=DATA_PATHS['menu'])
 
     # 2-1. GNN 모델 초기화, 학습 및 저장
-    gnn_recommender = GraphRecommender(ratings_path=DATA_PATHS['rating'], menu_path=DATA_PATHS['menu'])
-    gnn_recommender.train(epochs=GNN_EPOCHS)
-
-    os.makedirs(os.path.dirname(GRAPH_MODEL_PATH), exist_ok=True)
-    gnn_recommender.save_model(GRAPH_MODEL_PATH)
+    gnn_recommender = None
+    if not IS_BASELINE:
+        print("GNN(LightGCN) 모델 학습...")
+        gnn_recommender = GraphRecommender(ratings_path=DATA_PATHS['rating'], menu_path=DATA_PATHS['menu'])
+        gnn_recommender.train()
+        
+        os.makedirs(os.path.dirname(GRAPH_MODEL_PATH), exist_ok=True)
+        gnn_recommender.save_model(GRAPH_MODEL_PATH)
+    else:
+        print(">> IS_BASELINE=True: GNN 학습을 건너뜁니다.")
     
     # 3. 특징 행렬 X, Y 생성 (학습 데이터)
-    X_train_full, Y_train_full = generate_hybrid_features_train(ratings_df, menu_df, rest_df, user_df, cb_recommender, cf_recommender, gnn_recommender)
-    
-    # 4. 학습/검증 셋 분리
-    X_train, X_test, Y_train, Y_test = train_test_split(
-        X_train_full, Y_train_full, test_size=0.2, random_state=42
+    X_train_full, Y_train_full = generate_hybrid_features_train(
+        ratings_df, menu_df, rest_df, user_df, 
+        cb_recommender, cf_recommender, gnn_recommender
     )
  
     # 4. MLP 모델 학습
     print(f"\n[5] MLP 모델 학습 시작... (Target: {MLP_MODEL_PATH})")
-    # 네거티브 샘플링으로 데이터가 늘어났으므로 확인용 출력
-    print(f"    - 총 학습 데이터 수: {len(Y_train_full)}")
-
-    mlp_blender = MLPBlender(input_dim=X_train_full.shape[1]) 
+    mlp_blender = MLPBlender(input_dim=X_train_full.shape[1]) # 자동으로 5 또는 6 설정됨
     
-    # train 함수는 blender_mlp.py의 상수를 사용하므로 인자 없이 데이터만 전달
     history = mlp_blender.train(
         X_train_full, 
-        Y_train_full
+        Y_train_full, 
+        epochs=EPOCHS, 
+        batch_size=4
     ) 
     
     # 5. 모델 저장
@@ -225,5 +156,4 @@ def main():
     plot_training_history(history)
 
 if __name__ == "__main__":
-    set_seeds(41)
     main()

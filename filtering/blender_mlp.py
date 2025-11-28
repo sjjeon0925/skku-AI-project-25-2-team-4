@@ -9,6 +9,10 @@ import numpy as np
 import pandas as pd
 import joblib
 
+# --- 학습 설정 ---
+MLP_EPOCHS = 300
+MLP_BATCH_SIZE = 4
+MLP_LR = 0.001
 LOG_INTERVAL = 10
 
 class IntervalLogger(Callback):
