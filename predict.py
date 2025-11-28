@@ -7,13 +7,15 @@ from sklearn.metrics import mean_squared_error
 from filtering.contents_based import ContentBasedRecommender
 from filtering.collaborative import CollaborativeRecommender
 from filtering.blender_mlp import MLPBlender
+from filtering.graph_model import GraphRecommender
 from tensorflow.keras.models import load_model
 from utils import DATA_PATHS, COORDINATES, calculate_distance_score, get_cb_preference
-from sklearn.metrics.pairwise import cosine_similarity # CB Score 계산용
+from sklearn.metrics.pairwise import cosine_similarity
 
 # --- 상수 설정 ---
-INPUT_FEATURE_DIM = 5 
-MODEL_PATH = 'model/final_mlp_model.keras'
+INPUT_FEATURE_DIM = 6
+MODEL_PATH = 'model/mlp_model.keras'
+GRAPH_MODEL_PATH = 'model/gnn_model.pth'
 SCALER_PATH = 'model/scaler.joblib' 
 
 LOCATION_NAME = {
@@ -31,7 +33,7 @@ def get_unrated_menu_ids(user_id, all_menu_ids, ratings_df):
     return list(set(all_menu_ids) - set(rated_menus))
 
 
-def generate_prediction_features_predict(candidate_df, user_id, user_loc_char, final_user_pref, cb_recommender, cf_recommender, rest_df):
+def generate_prediction_features_predict(candidate_df, user_id, user_loc_char, final_user_pref, cb_recommender, cf_recommender, gnn_recommender, rest_df):
     """
     실시간 예측을 위한 특징 행렬 X_predict를 생성합니다. (라이브 유저 입력 반영)
     """
@@ -54,6 +56,11 @@ def generate_prediction_features_predict(candidate_df, user_id, user_loc_char, f
             uid=user_id, iid=menu_id
         ).est
     )
+
+    # Graph Score (GNN 예측)
+    X_predict_data['Graph_Score'] = X_predict_data['menu_id'].apply(
+        lambda menu_id: gnn_recommender.get_graph_score(user_id, menu_id)
+    )
     
     # Distance Score (현재 위치 기반)
     X_predict_data['Distance_Score'] = X_predict_data.apply(
@@ -67,7 +74,7 @@ def generate_prediction_features_predict(candidate_df, user_id, user_loc_char, f
     X_predict_data['Avg_Rating'] = X_predict_data['rating']
 
     # 2. MLP 예측을 위한 X_predict 행렬 추출
-    X_predict = X_predict_data[['CB_Score', 'CF_Score', 'price', 'Distance_Score', 'Avg_Rating']].values
+    X_predict = X_predict_data[['CB_Score', 'CF_Score', 'Graph_Score', 'price', 'Distance_Score', 'Avg_Rating']].values
     
     return X_predict, X_predict_data
 
@@ -76,7 +83,7 @@ def main():
     parser = argparse.ArgumentParser(description="SKKU Menu Hybrid Recommendation Predictor")
     parser.add_argument('--i', type=int, required=True, help='User ID (e.g., 2020)')
     parser.add_argument('--l', type=str, required=True, choices=COORDINATES.keys(), help='Current Location Code (s, b, n, f)')
-    parser.add_argument('--b', type=int, default=10, help='Budget (in thousand KRW, e.g., 10 for 10,000 KRW)')
+    parser.add_argument('--b', type=int, default=50, help='Budget (in thousand KRW, e.g., 10 for 10,000 KRW)')
     parser.add_argument('--q', type=str, default="", help='Optional query for content filtering')
     args = parser.parse_args()
     
@@ -92,7 +99,15 @@ def main():
 
     # Custom Metric 정의 (로드 시 필수)
     def root_mean_squared_error(y_true, y_pred):
-         return np.sqrt(mean_squared_error(y_true, y_pred))
+        return np.sqrt(mean_squared_error(y_true, y_pred))
+    
+    # GNN 모델 로드
+    gnn_recommender = GraphRecommender(ratings_path=DATA_PATHS['rating'], menu_path=DATA_PATHS['menu'])
+    if os.path.exists(GRAPH_MODEL_PATH):
+        gnn_recommender.load_model(GRAPH_MODEL_PATH)
+    else:
+        print("GNN 모델 파일이 없습니다.")
+        return
 
     # MLP/Scaler 로드
     mlp_blender = MLPBlender(input_dim=INPUT_FEATURE_DIM)
@@ -116,12 +131,12 @@ def main():
         
     user_allergy = user_row['allergy'].iloc[0]
     
-    # 알레르기 값 존재 여부 확인 후 분기 처리
+    # 2-1. 하드 필터링 적용
     if pd.isna(user_allergy):
-        # 알레르기 없으면: 예산만 필터링
+        # 알레르기가 없으면: 예산 조건만 적용
         candidate_df = menu_df[menu_df['price'] <= USER_BUDGET].copy()
     else:
-        # 알레르기 있으면: 예산 + 알레르기 필터링
+        # 알레르기가 있으면: 예산 조건 + 알레르기 제외 조건 적용
         candidate_df = menu_df[
             (menu_df['price'] <= USER_BUDGET) & 
             (~menu_df['features'].str.contains(user_allergy, na=False))
@@ -144,7 +159,7 @@ def main():
     final_user_pref = get_cb_preference(USER_ID, USER_QUERY) # 쿼리 통합 선호도 문자열
     
     X_predict_raw, result_df = generate_prediction_features_predict(
-        candidate_df, USER_ID, USER_LOC_CHAR, final_user_pref, cb_recommender, cf_recommender, rest_df
+        candidate_df, USER_ID, USER_LOC_CHAR, final_user_pref, cb_recommender, cf_recommender, gnn_recommender, rest_df
     )
     
     # 4. MLP 예측
