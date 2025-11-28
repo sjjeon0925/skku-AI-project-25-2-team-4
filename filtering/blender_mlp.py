@@ -2,11 +2,28 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.metrics import RootMeanSquaredError
+from tensorflow.keras.callbacks import Callback
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import numpy as np
 import pandas as pd
 import joblib
+
+LOG_INTERVAL = 10
+
+class IntervalLogger(Callback):
+    def __init__(self, interval):
+        super(IntervalLogger, self).__init__()
+        self.interval = interval
+
+    def on_epoch_end(self, epoch, logs=None):
+        # epoch는 0부터 시작하므로 1을 더해서 계산
+        if (epoch + 1) % self.interval == 0:
+            # 로그 딕셔너리에서 loss와 rmse 값을 가져와서 출력 포맷 생성
+            msg = f"Epoch {epoch + 1}: "
+            for k, v in logs.items():
+                msg += f"- {k}: {v:.4f} "
+            print(msg)
 
 class MLPBlender:
     def __init__(self, input_dim):
@@ -44,7 +61,8 @@ class MLPBlender:
             epochs=epochs,
             batch_size=batch_size,
             validation_data=(X_val_split, y_val_split),
-            verbose=1 # 학습 과정을 출력
+            verbose=0,
+            callbacks=[IntervalLogger(LOG_INTERVAL)]
         )
         return history
 
