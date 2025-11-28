@@ -6,13 +6,8 @@ import pandas as pd
 import numpy as np
 import os
 
-EMBEDDING_STD = 0.01
-GNN_EPOCHS = 500
-GNN_LR = 0.005
-GNN_WD = 1e-6
-
 class LightGCN(nn.Module):
-    def __init__(self, num_users, num_items, embedding_dim=16, n_layers=3):
+    def __init__(self, num_users, num_items, embedding_dim=64, n_layers=3):
         super(LightGCN, self).__init__()
         self.num_users = num_users
         self.num_items = num_items
@@ -24,8 +19,8 @@ class LightGCN(nn.Module):
         self.item_embedding = nn.Embedding(num_items, embedding_dim)
         
         # 임베딩 초기화 (Normal Distribution)
-        nn.init.normal_(self.user_embedding.weight, std=EMBEDDING_STD)
-        nn.init.normal_(self.item_embedding.weight, std=EMBEDDING_STD)
+        nn.init.normal_(self.user_embedding.weight, std=0.1)
+        nn.init.normal_(self.item_embedding.weight, std=0.1)
 
     def forward(self, adj_matrix):
         # 1. 초기 임베딩 결합
@@ -89,10 +84,7 @@ class GraphRecommender:
         # 실제 성능을 위해선 정규화 과정이 중요합니다.
         return adj.coalesce()
 
-    def train(self):
-        epochs = GNN_EPOCHS
-        lr = GNN_LR
-
+    def train(self, epochs=50, lr=0.001):
         print(f"GNN(LightGCN) 모델 학습 시작... (User: {self.num_users}, Item: {self.num_items})")
         
         ratings_df = pd.read_csv(self.ratings_path)
@@ -101,9 +93,7 @@ class GraphRecommender:
         self.adj_matrix = self._build_adj_matrix(train_df)
         self.model = LightGCN(self.num_users, self.num_items)
 
-
-        # optimizer = optim.Adam(self.model.parameters(), lr=lr, weight_decay=1e-5)
-        optimizer = optim.Adam(self.model.parameters(), lr=lr, weight_decay=GNN_WD)
+        optimizer = optim.Adam(self.model.parameters(), lr=lr, weight_decay=1e-4)
         
         # 학습 데이터 준비 (User, Positive Item)
         user_indices = [self.user2idx[u] for u in train_df['user_id']]
