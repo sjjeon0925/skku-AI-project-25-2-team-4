@@ -3,7 +3,11 @@ import pandas as pd
 import os
 from sklearn.metrics import mean_squared_error
 
-# --- 🎯 위치 정보 및 상수 정의 ---
+# True: GNN 미사용 (Baseline 모드, Feature 5개)
+# False: GNN 사용 (Advanced 모드, Feature 6개)
+IS_BASELINE = True
+
+# --- 위치 정보 및 상수 정의 ---
 COORDINATES = {
     's': (37.29986776148395, 126.97219805873624), # 성균관대역
     'b': (37.29633029410662, 126.97061603024721), # 후문 (Back gate)
@@ -18,6 +22,21 @@ DATA_PATHS = {
     'user': './data/user_data.csv',
     'rating': './data/rating_data.csv',
 }
+
+GRAPH_MODEL_PATH = 'model/gnn_model.pth'
+
+if IS_BASELINE:
+    # Baseline 버전 파일 경로
+    MLP_MODEL_PATH = 'model/mlp_model_baseline.keras'
+    SCALER_PATH = 'model/scaler_baseline.joblib'
+    INPUT_FEATURE_DIM = 5
+    print(f">> [System] Running in BASELINE mode (Dim: {INPUT_FEATURE_DIM})")
+else:
+    # GNN 버전 파일 경로
+    MLP_MODEL_PATH = 'model/mlp_model_gnn.keras'
+    SCALER_PATH = 'model/scaler_gnn.joblib'
+    INPUT_FEATURE_DIM = 6
+    print(f">> [System] Running in GNN mode (Dim: {INPUT_FEATURE_DIM})")
 
 # --- 지리 계산 함수 ---
 

@@ -9,6 +9,10 @@ import numpy as np
 import pandas as pd
 import joblib
 
+# --- 학습 설정 ---
+MLP_EPOCHS = 300
+MLP_BATCH_SIZE = 4
+MLP_LR = 0.001
 LOG_INTERVAL = 10
 
 class IntervalLogger(Callback):
@@ -38,12 +42,15 @@ class MLPBlender:
         
         # 2. 모델 컴파일 (Loss: MSE, Metric: RMSE)
         self.model.compile(
-            optimizer=Adam(learning_rate=0.001),
+            optimizer=Adam(learning_rate=MLP_LR),
             loss='mse',
             metrics=[RootMeanSquaredError()]
         )
 
-    def train(self, X_train_raw, y_train, epochs=30, batch_size=32):
+    def train(self, X_train_raw, y_train):
+        epochs=MLP_EPOCHS
+        batch_size=MLP_BATCH_SIZE
+
         """
         입력 특징(X)과 정답 평점(Y)을 받아 모델을 학습시킵니다.
         """
