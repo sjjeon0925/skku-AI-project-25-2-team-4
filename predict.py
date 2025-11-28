@@ -109,10 +109,23 @@ def main():
     ratings_df = pd.read_csv(DATA_PATHS['rating']) # unrated 메뉴를 찾기 위해 로드
     
     # 2. Hard Filtering (유저 입력 사용 O)
-    user_allergy = user_df[user_df['user_id'] == USER_ID]['allergy'].iloc[0]
+    user_row = user_df[user_df['user_id'] == USER_ID]
+    if user_row.empty:
+        print(f"Error: User ID {USER_ID} not found in user_data.")
+        return
+        
+    user_allergy = user_row['allergy'].iloc[0]
     
-    # 2-1. 하드 필터링 적용
-    candidate_df = menu_df[(menu_df['price'] <= USER_BUDGET) & (~menu_df['features'].str.contains(user_allergy, na=False))].copy()
+    # 알레르기 값 존재 여부 확인 후 분기 처리
+    if pd.isna(user_allergy):
+        # 알레르기 없으면: 예산만 필터링
+        candidate_df = menu_df[menu_df['price'] <= USER_BUDGET].copy()
+    else:
+        # 알레르기 있으면: 예산 + 알레르기 필터링
+        candidate_df = menu_df[
+            (menu_df['price'] <= USER_BUDGET) & 
+            (~menu_df['features'].str.contains(user_allergy, na=False))
+        ].copy()
     
     # 2-2. 미평가 메뉴 필터링 (CF의 목적을 위해)
     unrated_menu_ids = get_unrated_menu_ids(USER_ID, menu_df['menu_id'], ratings_df)
