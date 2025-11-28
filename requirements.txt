@@ -3,3 +3,6 @@ scikit-surprise
 pandas
 numpy==1.26.4
 tensorflow
+torch
+matplotlib
+joblib
