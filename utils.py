@@ -5,7 +5,7 @@ from sklearn.metrics import mean_squared_error
 
 # True: GNN 미사용 (Baseline 모드, Feature 5개)
 # False: GNN 사용 (Advanced 모드, Feature 6개)
-IS_BASELINE = True
+IS_BASELINE = False
 
 # --- 위치 정보 및 상수 정의 ---
 COORDINATES = {

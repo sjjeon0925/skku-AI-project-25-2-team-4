@@ -7,12 +7,12 @@ import numpy as np
 import os
 
 EMBEDDING_STD = 0.01
-GNN_EPOCHS = 100
-GNN_LR = 0.0001
+GNN_EPOCHS = 500
+GNN_LR = 0.005
 GNN_WD = 1e-6
 
 class LightGCN(nn.Module):
-    def __init__(self, num_users, num_items, embedding_dim=64, n_layers=3):
+    def __init__(self, num_users, num_items, embedding_dim=16, n_layers=3):
         super(LightGCN, self).__init__()
         self.num_users = num_users
         self.num_items = num_items
