@@ -34,9 +34,9 @@ class MLPBlender:
         # 1. MLP 모델 구조 정의 (Keras Sequential API 사용)
         self.scaler = StandardScaler()
         self.model = Sequential([
-            Dense(32, activation='relu', input_shape=(input_dim,)), 
-            Dropout(0.2), 
-            Dense(16, activation='relu'),
+            Dense(16, activation='relu', input_shape=(input_dim,)), 
+            Dropout(0.5), 
+            Dense(8, activation='relu'),
             Dense(1, activation='linear') 
         ])
         

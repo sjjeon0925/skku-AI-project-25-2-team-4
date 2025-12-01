@@ -53,10 +53,15 @@ def generate_prediction_features_predict(candidate_df, user_id, user_loc, user_p
     X_predict_data['CF_Score'] = X_predict_data['menu_id'].map(cf_score_map)
 
     # 3. Graph Score (조건부)
+    candidate_df['Graph_Score'] = 0.0
     if not IS_BASELINE and gnn_recommender:
         X_predict_data['Graph_Score'] = X_predict_data['menu_id'].apply(
             lambda menu_id: gnn_recommender.get_graph_score(user_id, menu_id)
         )
+        g_min = candidate_df['Graph_Score'].min()
+        g_max = candidate_df['Graph_Score'].max()
+        if g_max > g_min:
+             candidate_df['Graph_Score'] = (candidate_df['Graph_Score'] - g_min) / (g_max - g_min)
 
     # 4. Meta Scores
     X_predict_data['Distance_Score'] = X_predict_data.apply(
@@ -77,8 +82,8 @@ def generate_prediction_features_predict(candidate_df, user_id, user_loc, user_p
 def main():
     parser = argparse.ArgumentParser(description="SKKU AI Project Recommendation System")
     parser.add_argument("--i", type=int, required=True, help="User ID")
-    parser.add_argument("--l", type=str, required=True, help="Location Code (s, b, n, f)")
-    parser.add_argument("--b", type=int, required=True, help="Budget (KRW)")
+    parser.add_argument("--l", type=str, required=False, default="b", help="Location Code (s, b, n, f)")
+    parser.add_argument("--b", type=int, required=False, default=100000, help="Budget (KRW)")
     parser.add_argument("--q", type=str, required=False, default="", help="Additional Query")
     
     args = parser.parse_args()
@@ -155,7 +160,7 @@ def main():
     result_df['Predicted_Rating'] = predicted_ratings
     
     # 4. 결과 출력
-    top_n = result_df.sort_values(by='Predicted_Rating', ascending=False).head(10)
+    top_n = result_df.sort_values(by='Predicted_Rating', ascending=False).head(21)
     
     # print("\n[Top 10 Recommendations]")
     # print(f"{'Menu':<20} | {'Restaurant':<15} | {'Price':<8} | {'Score':<5}")
@@ -185,16 +190,16 @@ def main():
     print("\n[Top 10 Recommendations]")
     
     # 헤더 출력
-    header_menu = pad_text("Menu", 60)
-    header_rest = pad_text("Restaurant", 40) # 식당 이름이 좀 길 수 있어서 늘림
+    header_menu = pad_text("Menu", 30)
+    header_rest = pad_text("Restaurant", 20) # 식당 이름이 좀 길 수 있어서 늘림
     header_price = pad_text("Price", 10)
     print(f"{header_menu} | {header_rest} | {header_price} | Score")
     print("-" * 60)
 
     # 데이터 출력
     for _, row in top_n.iterrows():
-        menu_str = pad_text(row['menu'], 60)
-        rest_str = pad_text(row['rest_name'], 40)
+        menu_str = pad_text(row['menu'], 30)
+        rest_str = pad_text(row['rest_name'], 20)
         price_str = pad_text(f"{row['price']:,}", 10) # 가격에 콤마(,) 추가
         score_str = f"{row['Predicted_Rating']:.2f}"
         
