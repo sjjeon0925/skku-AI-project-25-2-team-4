@@ -2,8 +2,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-temp
+
 
 .venv
 data
 model
+data_processing
