@@ -1,11 +1,11 @@
 import math
 import pandas as pd
 import os
-from sklearn.metrics import mean_squared_error
+# from sklearn.metrics import mean_squared_error
 
 # True: GNN 미사용 (Baseline 모드, Feature 5개)
 # False: GNN 사용 (Advanced 모드, Feature 6개)
-IS_BASELINE = False
+# IS_BASELINE = False
 
 # --- 위치 정보 및 상수 정의 ---
 COORDINATES = {
@@ -23,20 +23,21 @@ DATA_PATHS = {
     'rating': './data/rating_data.csv',
 }
 
-GRAPH_MODEL_PATH = 'model/gnn_model.pth'
+# GRAPH_MODEL_PATH = 'model/gnn_model.pth'
+MODEL_DIR = 'model'
 
-if IS_BASELINE:
-    # Baseline 버전 파일 경로
-    MLP_MODEL_PATH = 'model/mlp_model_baseline.keras'
-    SCALER_PATH = 'model/scaler_baseline.joblib'
-    INPUT_FEATURE_DIM = 5
-    print(f">> [System] Running in BASELINE mode (Dim: {INPUT_FEATURE_DIM})")
-else:
-    # GNN 버전 파일 경로
-    MLP_MODEL_PATH = 'model/mlp_model_gnn.keras'
-    SCALER_PATH = 'model/scaler_gnn.joblib'
-    INPUT_FEATURE_DIM = 6
-    print(f">> [System] Running in GNN mode (Dim: {INPUT_FEATURE_DIM})")
+# if IS_BASELINE:
+#     # Baseline 버전 파일 경로
+#     MLP_MODEL_PATH = 'model/mlp_model_baseline.keras'
+#     SCALER_PATH = 'model/scaler_baseline.joblib'
+#     INPUT_FEATURE_DIM = 5
+#     print(f">> [System] Running in BASELINE mode (Dim: {INPUT_FEATURE_DIM})")
+# else:
+#     # GNN 버전 파일 경로
+#     MLP_MODEL_PATH = 'model/mlp_model_gnn.keras'
+#     SCALER_PATH = 'model/scaler_gnn.joblib'
+#     INPUT_FEATURE_DIM = 6
+#     print(f">> [System] Running in GNN mode (Dim: {INPUT_FEATURE_DIM})")
 
 # --- 지리 계산 함수 ---
 
