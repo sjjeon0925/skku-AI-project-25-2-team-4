@@ -1,15 +1,20 @@
 📊 Result [baseline]:
-   Recall@10: 10.86%
-   Prec@10  : 17.65%
-   NDCG@10  : 0.4639
+   Recall@10  : 9.36%
+   Prec@10    : 15.88%
+   NDCG@10    : 0.4482
+   Avg Dist   : 0.25 km
+   Avg Price  : 12,766 KRW
 
 📊 Result [gnn_only]:
-   Recall@10: 47.54%
-   Prec@10  : 80.00%
-   NDCG@10  : 0.9201
-
+   Recall@10  : 47.54%
+   Prec@10    : 80.00%
+   NDCG@10    : 0.9201
+   Avg Dist   : 0.27 km
+   Avg Price  : 12,233 KRW
 
 📊 Result [proposed]:
-   Recall@10: 50.09%
-   Prec@10  : 80.00%
-   NDCG@10  : 0.9379
+   Recall@10  : 41.24%
+   Prec@10    : 67.94%
+   NDCG@10    : 0.8155
+   Avg Dist   : 0.35 km
+   Avg Price  : 11,889 KRW
