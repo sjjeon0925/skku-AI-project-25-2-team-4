@@ -7,7 +7,7 @@ from filtering.contents_based import ContentBasedRecommender
 from filtering.collaborative import CollaborativeRecommender
 from filtering.blender_mlp import MLPBlender
 from filtering.graph_model import GraphRecommender
-from utils import DATA_PATHS, calculate_distance_score, MODEL_DIR
+from utils import DATA_PATHS, calculate_distance_score, MODEL_DIR, haversine, COORDINATES
 
 def ndcg_at_k(r, k):
     def dcg(r, k):
@@ -44,8 +44,10 @@ def evaluate(args):
     rest_df = pd.read_csv(DATA_PATHS['rest'])
     user_df = pd.read_csv(DATA_PATHS['user'])
 
-    # Eval Loop
-    metrics = {'recall': [], 'precision': [], 'ndcg': []}
+    metrics = {
+        'recall': [], 'precision': [], 'ndcg': [],
+        'avg_dist': [], 'avg_price': []
+    }
     
     for user_id, true_ids in user_ground_truth.items():
         user_row = user_df[user_df['user_id'].astype(str) == str(user_id)]
@@ -66,32 +68,52 @@ def evaluate(args):
         
         # Meta
         df = pd.merge(df, rest_df[['rest_id', 'Latitude', 'Longitude', 'rating']], on='rest_id', how='left')
+        
+        test_loc = 'b' 
+        user_lat, user_lon = COORDINATES[test_loc]
+        df['Real_Dist_KM'] = df.apply(lambda r: haversine(user_lat, user_lon, r['Latitude'], r['Longitude']), axis=1)
+
         df['Dist'] = df.apply(lambda r: calculate_distance_score('b', r['Latitude'], r['Longitude']), axis=1)
         df['rating'] = df['rating'].fillna(3.0)
+
+        # Normalization
+        df['CB'] = df['CB'].clip(0, 1)
+        df['CF'] = df['CF'] / 5.0
+        df['price_log'] = np.log1p(df['price'])
+        df['rating'] = df['rating'] / 5.0
 
         # Predict
         if args.mode == 'gnn_only':
             df['Score'] = df['GNN']
         elif args.mode == 'baseline':
-            X = df[['CB', 'CF', 'price', 'Dist', 'rating']].values
+            X = df[['CB', 'CF', 'price_log', 'Dist', 'rating']].values
             df['Score'] = mlp.predict(X)
         else: # proposed
-            X = df[['CB', 'CF', 'GNN', 'price', 'Dist', 'rating']].values
+            X = df[['CB', 'CF', 'GNN', 'price_log', 'Dist', 'rating']].values
             df['Score'] = mlp.predict(X)
 
-        # Top-K
-        recs = df.sort_values(by='Score', ascending=False).head(10)['menu_id'].tolist()
-        
+        # Top-K 추출 (상위 10개)
+        top_10_df = df.sort_values(by='Score', ascending=False).head(10)
+        recs = top_10_df['menu_id'].tolist()
+
+        avg_dist = top_10_df['Real_Dist_KM'].mean()
+        avg_price = top_10_df['price'].mean()
+
         # Calc Metrics
         hits = set(true_ids) & set(recs)
         metrics['recall'].append(len(hits) / len(true_ids))
         metrics['precision'].append(len(hits) / 10)
         metrics['ndcg'].append(ndcg_at_k([1 if m in true_ids else 0 for m in recs], 10))
+        
+        metrics['avg_dist'].append(avg_dist)
+        metrics['avg_price'].append(avg_price)
 
     print(f"\n📊 Result [{args.mode}]:")
-    print(f"   Recall@10: {np.mean(metrics['recall'])*100:.2f}%")
-    print(f"   Prec@10  : {np.mean(metrics['precision'])*100:.2f}%")
-    print(f"   NDCG@10  : {np.mean(metrics['ndcg']):.4f}")
+    print(f"   Recall@10  : {np.mean(metrics['recall'])*100:.2f}%")
+    print(f"   Prec@10    : {np.mean(metrics['precision'])*100:.2f}%")
+    print(f"   NDCG@10    : {np.mean(metrics['ndcg']):.4f}")
+    print(f"   Avg Dist   : {np.mean(metrics['avg_dist']):.2f} km")
+    print(f"   Avg Price  : {np.mean(metrics['avg_price']):,.0f} KRW")
     
     # 결과 리턴용 (자동화 스크립트가 잡을 수 있게)
     return np.mean(metrics['recall'])

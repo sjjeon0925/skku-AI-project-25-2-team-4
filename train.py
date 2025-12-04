@@ -73,8 +73,13 @@ def process_features(ratings_df, menu_df, rest_df, user_df, cb, cf, gnn, mode):
         g_min, g_max = data['Graph_Score'].min(), data['Graph_Score'].max()
         if g_max > g_min: data['Graph_Score'] = (data['Graph_Score'] - g_min) / (g_max - g_min)
     
-    data['Distance_Score'] = 0.5 
-
+    # Normalization
+    data['CB_Score'] = data['CB_Score'].clip(0, 1)
+    data['CF_Score'] = data['CF_Score'] / 5.0
+    data['price'] = np.log1p(data['price'])
+    data['Distance_Score'] = 0.5 # temporarily fix the value 
+    data['rating_rest'] = data['rating_rest'] / 5.0
+    
     # 4. Create X, Y
     if mode == 'baseline':
         X = data[['CB_Score', 'CF_Score', 'price', 'Distance_Score', 'rating_rest']].values
