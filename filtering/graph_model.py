@@ -4,12 +4,12 @@ import torch.nn.functional as F
 import torch.optim as optim
 import pandas as pd
 import numpy as np
-import os
+# import os
 
-EMBEDDING_STD = 0.01
-GNN_EPOCHS = 500
-GNN_LR = 0.005
-GNN_WD = 1e-6
+# EMBEDDING_STD = 0.01
+# GNN_EPOCHS = 500
+# GNN_LR = 0.005
+# GNN_WD = 1e-6
 
 class LightGCN(nn.Module):
     def __init__(self, num_users, num_items, embedding_dim=16, n_layers=3):
@@ -24,8 +24,8 @@ class LightGCN(nn.Module):
         self.item_embedding = nn.Embedding(num_items, embedding_dim)
         
         # 임베딩 초기화 (Normal Distribution)
-        nn.init.normal_(self.user_embedding.weight, std=EMBEDDING_STD)
-        nn.init.normal_(self.item_embedding.weight, std=EMBEDDING_STD)
+        nn.init.normal_(self.user_embedding.weight, std=0.01)
+        nn.init.normal_(self.item_embedding.weight, std=0.01)
 
     def forward(self, adj_matrix):
         # 1. 초기 임베딩 결합
@@ -85,102 +85,64 @@ class GraphRecommender:
         i = torch.LongTensor([row, col])
         adj = torch.sparse_coo_tensor(i, values, (N, N))
         
-        # 정규화 (D^-1/2 * A * D^-1/2) - 간단하게 Row Normalize로 대체 가능하나 여기선 생략
-        # 실제 성능을 위해선 정규화 과정이 중요합니다.
         return adj.coalesce()
 
-    def train(self):
-        epochs = GNN_EPOCHS
-        lr = GNN_LR
-
-        print(f"GNN(LightGCN) 모델 학습 시작... (User: {self.num_users}, Item: {self.num_items})")
-        
+    # 외부에서 파라미터 주입 가능
+    def train(self, embedding_dim=16, epochs=2000, lr=0.005, weight_decay=1e-6, verbose=False):
+        # [수정] 컬럼명 호환성 처리
         ratings_df = pd.read_csv(self.ratings_path)
-        train_df = ratings_df[ratings_df['rating'] > 0] 
-        
+        rating_col = 'rating'
+        if 'rating' not in ratings_df.columns and 'rating_menu' in ratings_df.columns:
+            rating_col = 'rating_menu'
+            
+        train_df = ratings_df[ratings_df[rating_col] > 0] 
         self.adj_matrix = self._build_adj_matrix(train_df)
-        self.model = LightGCN(self.num_users, self.num_items)
-
-
-        # optimizer = optim.Adam(self.model.parameters(), lr=lr, weight_decay=1e-5)
-        optimizer = optim.Adam(self.model.parameters(), lr=lr, weight_decay=GNN_WD)
         
-        # 학습 데이터 준비 (User, Positive Item)
-        user_indices = [self.user2idx[u] for u in train_df['user_id']]
-        pos_item_indices = [self.menu2idx[m] for m in train_df['menu_id']]
+        self.model = LightGCN(self.num_users, self.num_items, embedding_dim=embedding_dim)
+        optimizer = optim.Adam(self.model.parameters(), lr=lr, weight_decay=weight_decay)
         
-        user_indices_t = torch.LongTensor(user_indices)
-        pos_item_indices_t = torch.LongTensor(pos_item_indices)
+        user_indices = torch.LongTensor([self.user2idx[u] for u in train_df['user_id']])
+        pos_item_indices = torch.LongTensor([self.menu2idx[m] for m in train_df['menu_id']])
         
         for epoch in range(epochs):
-            # 1. Forward
+            # ... (학습 로직 동일) ...
             users_emb, items_emb = self.model(self.adj_matrix)
             
-            # 2. Negative Sampling (안 먹은 메뉴 무작위 하나 뽑기)
-            # 데이터가 적으므로 간단하게 랜덤으로 뽑음
-            neg_item_indices = []
-            for u_idx in user_indices:
-                # 간단한 구현: 전체 메뉴 중 랜덤 하나 뽑기 (운 좋게 먹은게 걸릴 수 있지만 학습엔 큰 지장 없음)
-                # 정석은 안 먹은 것만 골라야 하지만 속도를 위해 랜덤 채택
-                rand_item = np.random.randint(0, self.num_items)
-                neg_item_indices.append(rand_item)
+            neg_item_indices = torch.randint(0, self.num_items, (len(user_indices),))
             
-            neg_item_indices_t = torch.LongTensor(neg_item_indices)
+            u_emb = users_emb[user_indices]
+            pos_i_emb = items_emb[pos_item_indices]
+            neg_i_emb = items_emb[neg_item_indices]
             
-            # 3. 점수 계산
-            # 먹은 거(Positive) 점수
-            u_emb = users_emb[user_indices_t]
-            pos_i_emb = items_emb[pos_item_indices_t]
             pos_scores = torch.sum(u_emb * pos_i_emb, dim=1)
-            
-            # 안 먹은 거(Negative) 점수
-            neg_i_emb = items_emb[neg_item_indices_t]
             neg_scores = torch.sum(u_emb * neg_i_emb, dim=1)
             
-            # 4. BPR Loss 계산
-            # (먹은거 점수 - 안먹은거 점수)가 클수록 좋음
             loss = -torch.mean(F.logsigmoid(pos_scores - neg_scores))
             
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             
-            if (epoch+1) % 10 == 0:
-                print(f"Epoch {epoch+1}/{epochs}, Loss: {loss.item():.4f}")
+            if verbose and (epoch+1) % 500 == 0:
+                print(f"   [GNN] Epoch {epoch+1}/{epochs}, Loss: {loss.item():.4f}")
         
-        # 학습 완료 후 최종 임베딩 저장
         with torch.no_grad():
             self.final_user_emb, self.final_item_emb = self.model(self.adj_matrix)
-            
-        print("GNN 모델 학습 완료.")
-
+   
     def get_graph_score(self, user_id, menu_id):
-        """
-        User와 Menu 사이의 그래프 기반 연결 점수(내적) 반환
-        """
-        if self.model is None:
+        if self.model is None or user_id not in self.user2idx or menu_id not in self.menu2idx:
             return 0.0
-            
-        # ID가 학습 데이터에 없으면 0 반환
-        if user_id not in self.user2idx or menu_id not in self.menu2idx:
-            return 0.0
-            
         u_idx = self.user2idx[user_id]
         m_idx = self.menu2idx[menu_id]
-        
-        u_emb = self.final_user_emb[u_idx]
-        m_emb = self.final_item_emb[m_idx]
-        
-        # 내적 (Dot Product)
-        score = torch.dot(u_emb, m_emb).item()
-        return score
+        return torch.dot(self.final_user_emb[u_idx], self.final_item_emb[m_idx]).item()
 
     def save_model(self, path):
         torch.save({
             'model_state_dict': self.model.state_dict(),
             'user2idx': self.user2idx,
             'menu2idx': self.menu2idx,
-            'embeddings': (self.final_user_emb, self.final_item_emb)
+            'embeddings': (self.final_user_emb, self.final_item_emb),
+            'config': {'dim': self.model.embedding_dim} # 차원 정보 저장
         }, path)
 
     def load_model(self, path):
@@ -189,9 +151,8 @@ class GraphRecommender:
         self.menu2idx = checkpoint['menu2idx']
         self.num_users = len(self.user2idx)
         self.num_items = len(self.menu2idx)
-        self.idx2user = {v:k for k,v in self.user2idx.items()} # 복원
-        self.idx2menu = {v:k for k,v in self.menu2idx.items()} # 복원
         
-        self.model = LightGCN(self.num_users, self.num_items)
+        dim = checkpoint.get('config', {}).get('dim', 16) # 저장된 차원 불러오기
+        self.model = LightGCN(self.num_users, self.num_items, embedding_dim=dim)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.final_user_emb, self.final_item_emb = checkpoint['embeddings']
