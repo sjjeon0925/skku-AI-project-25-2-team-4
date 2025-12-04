@@ -133,19 +133,19 @@ python3 predict.py --i [USER_ID] --l [LOCATION] --mode [MODE] --model_name [NAME
 **1. Proposed 모드 (기본값 & 권장)**
 `best_proposed_mlp.keras` 와 `best_proposed_gnn.pth` 파일이 필요합니다.
 ```bash
-python3 predict.py --i 2020311640 --l b --b 25000 --q "한식" --mode proposed --model_name best_proposed
+python3 predict.py --i 2020311640 --l b --b 25000 --mode proposed --model_name best_proposed
 ```
 
 **2. Baseline 모드**
 `best_baseline_mlp.keras` 파일이 필요합니다.
 ```bash
-python3 predict.py --i 2020311640 --l b --b 25000 --q "한식" --mode baseline --model_name best_baseline
+python3 predict.py --i 2020311640 --l b --b 25000 --mode baseline --model_name best_baseline
 ```
 
 **3. GNN Only 모드**
 `best_gnn_only_gnn.pth` 파일이 필요합니다.
 ```bash
-python3 predict.py --i 2020311640 --l b --b 25000 --q "한식" --mode gnn_only --model_name best_gnn_only
+python3 predict.py --i 2020311640 --l b --b 25000 --mode gnn_only --model_name best_gnn_only
 ```
 
 #### 인자(Arguments) 설명
@@ -157,7 +157,6 @@ python3 predict.py --i 2020311640 --l b --b 25000 --q "한식" --mode gnn_only -
 | `--mode` | **필수:** 모델 타입 (`proposed`, `baseline`, `gnn_only`). | 입력 특징(Feature)의 차원 수와 로직을 결정합니다. |
 | `--model_name` | **필수:** 저장된 모델 파일의 접두사(prefix). | `model/` 폴더에서 특정 모델 파일을 로드하는 데 사용됩니다. |
 | `--b` | **선택:** 최대 예산 (기본값: 100000). | **하드 필터링**을 통해 예산을 초과하는 메뉴를 제외합니다. |
-| `--q` | **선택:** 즉각적인 선호도를 반영하는 키워드. | **CB 점수 계산** 시 사용자 프로필과 결합됩니다. |
 
 **출력 예시**
 

@@ -133,19 +133,19 @@ python3 predict.py --i [USER_ID] --l [LOCATION] --mode [MODE] --model_name [NAME
 **1. Proposed Mode (Default & Best)**
 Requires `best_proposed_mlp.keras` and `best_proposed_gnn.pth`.
 ```bash
-python3 predict.py --i 2020123456 --l b --b 25000 --q "한식" --mode proposed --model_name best_proposed
+python3 predict.py --i 2020123456 --l b --b 25000 --mode proposed --model_name best_proposed
 ```
 
 **2. Baseline Mode**
 Requires `best_baseline_mlp.keras`.
 ```bash
-python3 predict.py --i 2020123456 --l b --b 25000 --q "한식" --mode baseline --model_name best_baseline
+python3 predict.py --i 2020123456 --l b --b 25000 --mode baseline --model_name best_baseline
 ```
 
 **3. GNN Only Mode**
 Requires `best_gnn_only_gnn.pth`.
 ```bash
-python3 predict.py --i 2020123456 --l b --b 25000 --q "한식" --mode gnn_only --model_name best_gnn_only
+python3 predict.py --i 2020123456 --l b --b 25000 --mode gnn_only --model_name best_gnn_only
 ```
 
 #### Arguments Detail
@@ -157,7 +157,6 @@ python3 predict.py --i 2020123456 --l b --b 25000 --q "한식" --mode gnn_only -
 | `--mode` | **Required:** Model Type (`proposed`, `baseline`, `gnn_only`). | Determines feature dimensions and logic. |
 | `--model_name` | **Required:** Prefix of the saved model files. | Loads specific model files from `model/` dir. |
 | `--b` | **Optional:** Max budget (default: 100000). | Used for **Hard Filtering** (removes expensive menus). |
-| `--q` | **Optional:** Keywords for immediate craving. | Combined with user profile for **CB Score calculation**. |
 
 **Output Example**
 
