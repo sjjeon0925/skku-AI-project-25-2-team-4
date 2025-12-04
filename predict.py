@@ -67,13 +67,19 @@ def generate_prediction_features(candidate_df, user_id, user_loc, user_pref_full
     X_predict_data.rename(columns={'rating': 'Avg_Rating'}, inplace=True)
     X_predict_data['Avg_Rating'] = X_predict_data['Avg_Rating'].fillna(3.0)
 
+    # Normalization
+    X_predict_data['CB_Score'] = X_predict_data['CB_Score'].clip(0, 1)
+    X_predict_data['CF_Score'] = X_predict_data['CF_Score'] / 5.0
+    X_predict_data['price_log'] = np.log1p(X_predict_data['price'])
+    X_predict_data['Avg_Rating'] = X_predict_data['Avg_Rating'] / 5.0
+
     # 5. Feature Selection (Mode에 따라 다름)
     if mode == 'baseline':
         # [CB, CF, Price, Dist, Rating] -> Dim 5
-        X = X_predict_data[['CB_Score', 'CF_Score', 'price', 'Distance_Score', 'Avg_Rating']].values
+        X = X_predict_data[['CB_Score', 'CF_Score', 'price_log', 'Distance_Score', 'Avg_Rating']].values
     elif mode == 'proposed':
         # [CB, CF, GNN, Price, Dist, Rating] -> Dim 6
-        X = X_predict_data[['CB_Score', 'CF_Score', 'Graph_Score', 'price', 'Distance_Score', 'Avg_Rating']].values
+        X = X_predict_data[['CB_Score', 'CF_Score', 'Graph_Score', 'price_log', 'Distance_Score', 'Avg_Rating']].values
     else: # gnn_only
         # MLP를 안 쓰지만 구조상 맞춤 (실제로는 GNN Score로만 정렬)
         X = X_predict_data[['Graph_Score']].values
