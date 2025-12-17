@@ -96,7 +96,6 @@ def run_cv(args, menu_df, rest_df, ratings_df, user_df):
     kf = KFold(n_splits=args.k_fold, shuffle=True, random_state=42)
     scores = []
 
-    # [수정] cf.train() 제거 (생성자에서 이미 학습됨)
     cb = ContentBasedRecommender(DATA_PATHS['menu'])
     cf = CollaborativeRecommender(DATA_PATHS['rating'], DATA_PATHS['menu'])
     
@@ -130,7 +129,6 @@ def run_cv(args, menu_df, rest_df, ratings_df, user_df):
 def train_final(args, menu_df, rest_df, ratings_df, user_df):
     print(f"🔥 [Final Training] Mode: {args.mode} | Saving to {args.model_name}")
     
-    # [수정] cf.train() 제거
     cb = ContentBasedRecommender(DATA_PATHS['menu'])
     cf = CollaborativeRecommender(DATA_PATHS['rating'], DATA_PATHS['menu'])
     

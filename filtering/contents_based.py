@@ -35,7 +35,7 @@ class ContentBasedRecommender:
         
         # 1. 선호도 문자열 결정 (훈련 vs. 예측)
         if isinstance(user_pref_source, int):
-            # A. 훈련 시나리오: user_id가 들어왔을 때 DB(user_df)에서 조회
+            # 훈련 시나리오: user_id가 들어왔을 때 DB(user_df)에서 조회
             user_id = user_pref_source
             if user_df is None: 
                 # user_df가 인수로 전달되지 않은 경우, 파일을 로드하여 조회 (안전 장치)
@@ -45,22 +45,18 @@ class ContentBasedRecommender:
             user_pref = user_df[user_df['user_id'] == user_id]['preference'].iloc[0]
         
         elif isinstance(user_pref_source, str):
-            # B. 예측 시나리오: 쿼리가 결합된 최종 선호도 문자열이 직접 들어왔을 때
+            # 예측 시나리오: 쿼리가 결합된 최종 선호도 문자열이 직접 들어왔을 때
             user_pref = user_pref_source
             
         else:
             return 0.0
 
         # 2. TF-IDF 벡터 생성 및 유사도 계산
-        # 'menu_id' 컬럼 이름이 'id'가 아닌 'menu_id'인지 확인
         menu_index = self.menu_df[self.menu_df['menu_id'] == menu_id].index
         if len(menu_index) == 0: return 0.0
         
-        # 사용자 선호도 문자열을 TF-IDF 벡터로 변환
         user_vector = self.tfidf_vectorizer.transform([user_pref])
-        
-        # 메뉴 특징 벡터 추출
         menu_vector = self.menu_feature_matrix[menu_index[0]]
         
-        # 코사인 유사도 계산
+        # Cosine 유사도 계산
         return cosine_similarity(user_vector, menu_vector)[0][0]

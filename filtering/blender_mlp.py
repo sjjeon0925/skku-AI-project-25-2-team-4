@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import joblib
 
-# 기본값 상수 (외부 인자가 없을 때 사용)
+# 기본값 상수
 MLP_EPOCHS = 300
 MLP_BATCH_SIZE = 4
 MLP_LR = 0.001
@@ -43,7 +43,7 @@ class MLPBlender:
             metrics=[RootMeanSquaredError()]
         )
 
-    # [수정] epochs, batch_size 인자 추가 및 기본값 설정
+    # epochs, batch_size 인자 추가 및 기본값 설정
     def train(self, X_train_raw, y_train, epochs=MLP_EPOCHS, batch_size=MLP_BATCH_SIZE, log_interval=LOG_INTERVAL):
         """
         입력 특징(X)과 정답 평점(Y)을 받아 모델을 학습시킵니다.
