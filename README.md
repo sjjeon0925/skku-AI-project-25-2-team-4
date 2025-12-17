@@ -1,6 +1,9 @@
 # Artificial Intelligence Project SKKU
 2025-2 Team-4
 
+👉 한국어 문서는 여기에서 보실 수 있습니다.  
+➡️ [README (한국어)](README_korean.md)
+
 ## Quick Start
 
 This section will guide you through setting up and running the recommendation system. This project implements a Hybrid Recommendation System combining **Content-Based Filtering**, **Collaborative Filtering (SVD)**, and **Graph Neural Networks (LightGCN)**, optimized via an MLP blender.
